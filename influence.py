@@ -35,11 +35,16 @@ def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> calla
             )
 
     def loss_fn(
-        params: PyTree, inputs: Float[Array, "1 ..."], targets: Float[Array, "1 1"]
+        params: PyTree, inputs: Float[Array, "1 ..."], targets: Float[Array, "1"]
     ) -> Float[Array, ""]:
-        # ensure that batch size is 1, as we will vmap over the batch dimension
+        """
+        Return the loss of the model with the given parameters on the given sample.
+        """
+        # fmt: off
         batch_size, *_ = inputs.shape
-        assert batch_size == 1
+        assert batch_size == 1, f"batch size must be 1, got {batch_size}"
+        assert targets.shape == (1,), f"shape of 'targets' must be (1,), got {targets.shape}"
+        # fmt: on
 
         outputs = functional_call(model, params, inputs, strict=True)
         loss = _loss_fn(outputs, targets).squeeze()

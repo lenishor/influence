@@ -3,7 +3,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from einops import repeat
+from einops import rearrange, repeat
 
 from influence import Batch, make_loss_fn, tracincp
 
@@ -16,14 +16,14 @@ def test_make_loss_fn(in_features=10):
     # loss should be a scalar
     with torch.no_grad():
         inputs = torch.randn(size=(1, in_features))
-        targets = torch.randn(size=(1, 1))
+        targets = torch.randn(size=(1,))
         loss = loss_fn(params, inputs, targets)
         assert loss.shape == torch.Size([])
 
     # loss should be zero if model is perfect
     with torch.no_grad():
         inputs = torch.randn(size=(1, in_features))
-        targets = model(inputs)
+        targets = rearrange(model(inputs), "1 1 -> 1")
         loss = loss_fn(params, inputs, targets)
         assert torch.allclose(loss, torch.zeros_like(loss))
 
