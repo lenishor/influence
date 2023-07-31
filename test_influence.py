@@ -5,20 +5,34 @@ import torch.nn as nn
 
 from einops import repeat
 
-from influence import Batch, make_pure_loss_fn, tracincp
+from influence import Batch, make_loss_fn, tracincp
 
 
-def test_make_pure_loss_fn(in_features=10):
-    # test if loss is zero if model is perfect
+def test_make_loss_fn(in_features=10):
     model = nn.Linear(in_features=in_features, out_features=1)
     params = {name: param.detach() for name, param in model.named_parameters()}
-    loss_fn = make_pure_loss_fn(model, loss_fn_name="l2")
+    loss_fn = make_loss_fn(model, loss_fn_name="l2")
 
-    inputs = torch.randn(size=(1, in_features))
-    targets = model(inputs)
-    loss = loss_fn(params, inputs, targets)
+    # loss should be a scalar
+    with torch.no_grad():
+        inputs = torch.randn(size=(1, in_features))
+        targets = torch.randn(size=(1, 1))
+        loss = loss_fn(params, inputs, targets)
+        assert loss.shape == torch.Size([])
 
-    assert torch.allclose(loss, torch.zeros_like(loss))
+    # loss should be zero if model is perfect
+    with torch.no_grad():
+        inputs = torch.randn(size=(1, in_features))
+        targets = model(inputs)
+        loss = loss_fn(params, inputs, targets)
+        assert torch.allclose(loss, torch.zeros_like(loss))
+
+    # batch size must be 1 or assertion should fail
+    with torch.no_grad():
+        inputs = torch.randn(size=(10, in_features))
+        targets = model(inputs)
+        with pytest.raises(AssertionError):
+            loss_fn(params, inputs, targets)
 
 
 @pytest.mark.repeat(10)
