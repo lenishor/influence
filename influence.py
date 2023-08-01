@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from typing import Any
 
 from jaxtyping import Float
-from torch.func import functional_call
+from torch.func import functional_call, grad
 
 
 Array = torch.Tensor
@@ -30,3 +30,11 @@ def make_loss_fn(model: nn.Module) -> callable:
         return loss
 
     return loss_fn
+
+
+def make_grad_fn(model: nn.Module) -> callable:
+    """
+    Return a pure function that computes the gradient of the loss w.r.t. the model parameters on a given sample.
+    """
+    loss_fn = make_loss_fn(model)
+    return grad(loss_fn, argnums=0)
