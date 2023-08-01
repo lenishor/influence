@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from typing import Iterable
+
 from einops import pack
 from jaxtyping import Float
 from torch.func import functional_call, grad
@@ -9,6 +11,7 @@ from torch.func import functional_call, grad
 
 Array = torch.Tensor
 Params = dict[str, Array]
+Sample = tuple[Array, Array]  # (input, target)
 
 
 def make_loss_fn(model: nn.Module) -> callable:
@@ -24,7 +27,7 @@ def make_loss_fn(model: nn.Module) -> callable:
 
         Assumes that the input and target tensors are not batched.
         """
-        output = functional_call(model, params, input)
+        output = functional_call(model, params, input, strict=True)
         loss = 0.5 * F.mse_loss(output, target)
         return loss
 
@@ -50,3 +53,36 @@ def make_grad_fn(model: nn.Module) -> callable:
         return grads
 
     return grad_fn
+
+
+def get_influences(
+    models: Iterable[nn.Module],
+    train_samples: list[Sample],
+    test_samples: list[Sample],
+    learning_rate: float = 1.0,
+) -> Array:
+    """
+    Return the influence matrix of the given train samples on the given test samples w.r.t. the given model checkpoints using the TracInCP method.
+
+    Assumes that the checkpoints are taken once every epoch.
+    """
+    influences = torch.zeros(size=(len(train_samples), len(test_samples)), dtype=float)
+
+    for model in models:
+        params = {name: param.detach() for name, param in model.named_parameters()}
+        grad_fn = make_grad_fn(model)
+
+        # fmt: off
+        train_grads = pack(
+            grad_fn(params, *train_sample) for train_sample in train_samples
+        )
+        test_grads = pack(
+            grad_fn(params, *test_sample) for test_sample in test_samples
+        )
+        # fmt: on
+
+        influences += learning_rate * torch.einsum(
+            "i p, j p -> i j", train_grads, test_grads
+        )
+
+    return influences
