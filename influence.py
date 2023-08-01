@@ -2,14 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Any
-
+from einops import pack
 from jaxtyping import Float
 from torch.func import functional_call, grad
 
 
 Array = torch.Tensor
-PyTree = dict[str, Any]
+Params = dict[str, Array]
 
 
 def make_loss_fn(model: nn.Module) -> callable:
@@ -18,7 +17,7 @@ def make_loss_fn(model: nn.Module) -> callable:
     """
 
     def loss_fn(
-        params: PyTree, input: Float[Array, "..."], target: Float[Array, ""]
+        params: Params, input: Float[Array, "..."], target: Float[Array, ""]
     ) -> Float[Array, ""]:
         """
         Return the loss of the model with the given parameters on the given sample.
@@ -37,4 +36,17 @@ def make_grad_fn(model: nn.Module) -> callable:
     Return a pure function that computes the gradient of the loss w.r.t. the model parameters on a given sample.
     """
     loss_fn = make_loss_fn(model)
-    return grad(loss_fn, argnums=0)
+
+    def grad_fn(
+        params: Params, input: Float[Array, "..."], target: Float[Array, ""]
+    ) -> Float[Array, "..."]:
+        """
+        Return the gradient of the loss w.r.t. the model parameters on the given sample.
+
+        Assumes that the input and target tensors are not batched. The gradient is returned as a flattened tensor.
+        """
+        grad_dict = grad(loss_fn, argnums=0)(params, input, target)
+        grads, _ = pack(list(grad_dict.values()), "*")
+        return grads
+
+    return grad_fn
