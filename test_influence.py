@@ -4,10 +4,24 @@ import torch.nn as nn
 
 from einops.layers.torch import Rearrange
 
-from influence import make_loss_fn, make_grad_fn
+from influence import Array, make_loss_fn, make_grad_fn
 
 
-@pytest.mark.parametrize("in_features", [1, 5, 10])
+def make_linear_model_from_weights(weights: Array) -> nn.Module:
+    """
+    Return a linear model with scalar outputs using the given weights.
+    """
+    out_features, in_features = weights.shape
+    assert out_features == 1
+
+    linear_layer = nn.Linear(
+        in_features=in_features, out_features=out_features, bias=False
+    )
+    linear_layer.weight.data = weights
+    model = nn.Sequential(linear_layer, Rearrange("1 ->"))
+    return model
+
+
 def test_make_loss_fn(in_features):
     model = nn.Sequential(
         nn.Linear(in_features=in_features, out_features=1, bias=False),
