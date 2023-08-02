@@ -22,23 +22,21 @@ def make_linear_model_from_weights(weights: Array) -> nn.Module:
     return model
 
 
-def test_make_loss_fn(in_features):
-    model = nn.Sequential(
-        nn.Linear(in_features=in_features, out_features=1, bias=False),
-        Rearrange("1 ->"),
-    )
-    model.zero_grad()
+def test_make_loss_fn():
+    weights = torch.tensor([[1.0, 2.0, 3.0]])  # (1, 3)
+    input = torch.tensor([1.0, 5.0, 3.0])  # (3,)
+    target = torch.tensor(18.0)  # ()
+    # expected_output = weights @ input = 1 * 1 + 2 * 5 + 3 * 3 = 20
+    # expected_loss = 0.5 * (expected_output - target) ** 2 = 0.5 * (20 - 18) ** 2 = 2
+    expected_loss = torch.tensor(2.0)
+
+    model = make_linear_model_from_weights(weights)
     params = {name: param.detach() for name, param in model.named_parameters()}
+
     loss_fn = make_loss_fn(model)
-
-    input = torch.randn(size=(in_features,))
-    target = torch.randn(size=())
-
     loss = loss_fn(params, input, target)
     assert loss.shape == ()
-
-    for param in model.parameters():
-        assert param.grad is None
+    assert torch.allclose(loss, expected_loss)
 
 
 @pytest.mark.parametrize("in_features", [1, 5, 10])
