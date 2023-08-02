@@ -49,8 +49,8 @@ def make_grad_fn(model: nn.Module) -> callable:
         Assumes that the input and target tensors are not batched. The gradient is returned as a flattened tensor.
         """
         grad_dict = grad(loss_fn, argnums=0)(params, input, target)
-        grads, _ = pack(list(grad_dict.values()), "*")
-        return grads
+        _grad, _ = pack(list(grad_dict.values()), "*")
+        return _grad
 
     return grad_fn
 
@@ -73,16 +73,16 @@ def get_influences(
         grad_fn = make_grad_fn(model)
 
         # fmt: off
-        train_grads = pack(
+        train_grad = pack(
             grad_fn(params, *train_sample) for train_sample in train_samples
         )
-        test_grads = pack(
+        test_grad = pack(
             grad_fn(params, *test_sample) for test_sample in test_samples
         )
         # fmt: on
 
         influences += learning_rate * torch.einsum(
-            "i p, j p -> i j", train_grads, test_grads
+            "i p, j p -> i j", train_grad, test_grad
         )
 
     return influences
