@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from einops.layers.torch import Rearrange
 
-from influence import Array, make_loss_fn, make_grad_fn
+from influence import Array, make_loss_fn, make_grad_fn, get_influences
 
 
 def make_linear_model_from_weights(weights: Array) -> nn.Module:
@@ -18,7 +18,7 @@ def make_linear_model_from_weights(weights: Array) -> nn.Module:
         in_features=in_features, out_features=out_features, bias=False
     )
     linear_layer.weight.data = weights
-    model = nn.Sequential(linear_layer, Rearrange("1 ->"))
+    model = nn.Sequential(linear_layer, Rearrange("... 1 -> ..."))
     return model
 
 
@@ -88,3 +88,24 @@ def test_make_grad_fn_auto(in_features: int):
     grad = grad_fn(params, input, target)
     assert grad.shape == (in_features,)
     assert torch.allclose(grad, expected_grad)
+
+
+@pytest.mark.repeat(1)
+@pytest.mark.parametrize("batch_size, in_features", [(1, 3), (5, 10), (10, 10)])
+def test_get_influences(batch_size: int, in_features: int):
+    weights = torch.randn(size=(1, in_features))
+    true_weights = torch.randn(size=(1, in_features))
+    model = make_linear_model_from_weights(weights)
+    true_model = make_linear_model_from_weights(true_weights)
+
+    inputs = torch.randn(size=(batch_size, in_features))
+    outputs = model(inputs)
+    targets = true_model(inputs)
+    errors = outputs - targets
+    similarities = torch.einsum("i d, j d -> i j", inputs, inputs)
+    expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
+
+    samples = [(input, target) for input, target in zip(inputs, targets)]
+    influences = get_influences([model], samples, samples)
+    assert influences.shape == (batch_size, batch_size)
+    assert torch.allclose(influences, expected_influences)

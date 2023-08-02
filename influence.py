@@ -66,23 +66,23 @@ def get_influences(
 
     Assumes that the checkpoints are taken once every epoch.
     """
-    influences = torch.zeros(size=(len(train_samples), len(test_samples)), dtype=float)
+    influences = torch.zeros(size=(len(train_samples), len(test_samples)))
 
     for model in models:
         params = {name: param.detach() for name, param in model.named_parameters()}
         grad_fn = make_grad_fn(model)
 
         # fmt: off
-        train_grad = pack(
-            grad_fn(params, *train_sample) for train_sample in train_samples
+        train_grads, _ = pack(
+            [grad_fn(params, *train_sample) for train_sample in train_samples], "* p",
         )
-        test_grad = pack(
-            grad_fn(params, *test_sample) for test_sample in test_samples
+        test_grads, _ = pack(
+            [grad_fn(params, *test_sample) for test_sample in test_samples], "* p",
         )
         # fmt: on
 
         influences += learning_rate * torch.einsum(
-            "i p, j p -> i j", train_grad, test_grad
+            "i p, j p -> i j", train_grads, test_grads
         )
 
     return influences
