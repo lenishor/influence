@@ -41,8 +41,10 @@ def test_make_loss_fn():
     assert torch.allclose(loss, expected_loss)
 
 
-def test_make_grad_fn():
-    """Test 'make_grad_fn' on a linear model."""
+def test_make_grad_fn_manual():
+    """
+    Test 'make_grad_fn' on a handwritten example.
+    """
     weights = torch.tensor([[1.0, 2.0, 3.0]])  # (1, 3)
     input = torch.tensor([1.0, 5.0, 3.0])  # (3,)
     target = torch.tensor(18.0)  # ()
@@ -62,4 +64,27 @@ def test_make_grad_fn():
     grad_fn = make_grad_fn(model)
     grad = grad_fn(params, input, target)
     assert grad.shape == (3,)
+    assert torch.allclose(grad, expected_grad)
+
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize("in_features", [1, 2, 5, 10])
+def test_make_grad_fn_auto(in_features: int):
+    """
+    Test 'make_grad_fn' on random linear models.
+    """
+    weights = torch.randn(size=(1, in_features))
+    true_weights = torch.randn(size=(1, in_features))
+    model = make_linear_model_from_weights(weights)
+    true_model = make_linear_model_from_weights(true_weights)
+
+    input = torch.randn(size=(in_features,))
+    output = model(input)
+    target = true_model(input)
+    expected_grad = (output - target) * input
+
+    params = {name: param.detach() for name, param in model.named_parameters()}
+    grad_fn = make_grad_fn(model)
+    grad = grad_fn(params, input, target)
+    assert grad.shape == (in_features,)
     assert torch.allclose(grad, expected_grad)
