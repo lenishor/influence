@@ -1,7 +1,9 @@
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dataclasses import dataclass
 from typing import Iterable
 
 from einops import pack, repeat
@@ -11,7 +13,16 @@ from torch.func import functional_call, grad, vmap
 
 Array = torch.Tensor
 Params = dict[str, Array]
-Sample = tuple[Array, Array]  # (input, target)
+
+
+@dataclass
+class Samples:
+    inputs: Float[Array, "b ..."]
+    targets: Float[Array, "b ..."]
+
+    def __len__(self) -> int:
+        batch_size, *_ = self.inputs.shape
+        return batch_size
 
 
 def make_loss_fn(model: nn.Module) -> callable:
@@ -20,7 +31,7 @@ def make_loss_fn(model: nn.Module) -> callable:
     """
 
     def loss_fn(
-        params: Params, input: Float[Array, "..."], target: Float[Array, ""]
+        params: Params, input: Float[Array, "..."], target: Float[Array, "..."]
     ) -> Float[Array, ""]:
         """
         Return the loss of the model with the given parameters on the given sample.
@@ -28,7 +39,7 @@ def make_loss_fn(model: nn.Module) -> callable:
         Assumes that the input and target tensors are not batched.
         Uses a singleton batch internally.
         """
-        inputs, targets = input.unsqueeze(dim=0), target.unsqueeze(dim=0)
+        inputs, targets = repeat(input, "... -> 1 ..."), repeat(target, "... -> 1 ...")
         outputs = functional_call(model, params, inputs, strict=True)
         loss = 0.5 * F.mse_loss(outputs, targets)
         return loss
@@ -59,10 +70,10 @@ def make_grad_fn(model: nn.Module) -> callable:
 
 def get_influences(
     models: Iterable[nn.Module],
-    train_samples: list[Sample],
-    test_samples: list[Sample],
+    train_samples: Samples,
+    test_samples: Samples,
     learning_rate: float = 1.0,
-) -> Array:
+) -> Float[Array, "n_train n_test"]:
     """
     Return the influence matrix of the given train samples on the given test samples w.r.t. the given model checkpoints using the TracInCP method.
 
@@ -73,16 +84,8 @@ def get_influences(
     for model in models:
         params = {name: param.detach() for name, param in model.named_parameters()}
         grad_fn = make_grad_fn(model)
-
-        # fmt: off
-        train_grads, _ = pack(
-            [grad_fn(params, *train_sample) for train_sample in train_samples], "* p",
-        )
-        test_grads, _ = pack(
-            [grad_fn(params, *test_sample) for test_sample in test_samples], "* p",
-        )
-        # fmt: on
-
+        train_grads = grad_fn(params, train_samples.inputs, train_samples.targets)
+        test_grads = grad_fn(params, test_samples.inputs, test_samples.targets)
         influences += learning_rate * torch.einsum(
             "i p, j p -> i j", train_grads, test_grads
         )

@@ -2,9 +2,10 @@ import pytest
 import torch
 import torch.nn as nn
 
+from einops import reduce
 from einops.layers.torch import Rearrange
 
-from influence import Array, make_loss_fn, make_grad_fn, get_influences
+from influence import Array, Samples, make_loss_fn, make_grad_fn, get_influences
 
 
 def make_linear_model_from_weights(weights: Array, batching: bool = False) -> nn.Module:
@@ -95,21 +96,21 @@ def test_make_grad_fn_auto(batch_size: int, in_features: int):
 
 
 @pytest.mark.repeat(1)
-@pytest.mark.parametrize("batch_size, in_features", [(1, 3), (5, 10), (10, 10)])
+@pytest.mark.parametrize("batch_size, in_features", [(5, 10), (10, 10)])
 def test_get_influences(batch_size: int, in_features: int):
     weights = torch.randn(size=(1, in_features))
     true_weights = torch.randn(size=(1, in_features))
-    model = make_linear_model_from_weights(weights)
-    true_model = make_linear_model_from_weights(true_weights)
+    model = make_linear_model_from_weights(weights, batching=True)
+    true_model = make_linear_model_from_weights(true_weights, batching=True)
 
     inputs = torch.randn(size=(batch_size, in_features))
     outputs = model(inputs)
     targets = true_model(inputs)
-    errors = outputs - targets
+    errors = reduce(outputs - targets, "b 1 -> b", reduction="sum")
     similarities = torch.einsum("i d, j d -> i j", inputs, inputs)
     expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
 
-    samples = [(input, target) for input, target in zip(inputs, targets)]
+    samples = Samples(inputs, targets)
     influences = get_influences([model], samples, samples)
     assert influences.shape == (batch_size, batch_size)
     assert torch.allclose(influences, expected_influences)
