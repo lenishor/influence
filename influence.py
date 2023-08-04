@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from typing import Iterable
 
-from einops import pack
+from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad
 
@@ -26,9 +26,11 @@ def make_loss_fn(model: nn.Module) -> callable:
         Return the loss of the model with the given parameters on the given sample.
 
         Assumes that the input and target tensors are not batched.
+        Uses a singleton batch internally.
         """
-        output = functional_call(model, params, input, strict=True)
-        loss = 0.5 * F.mse_loss(output, target)
+        inputs, targets = repeat(input, "... -> 1 ..."), repeat(target, "-> 1")
+        outputs = functional_call(model, params, inputs, strict=True)
+        loss = 0.5 * F.mse_loss(outputs, targets)
         return loss
 
     return loss_fn
