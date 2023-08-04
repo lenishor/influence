@@ -6,7 +6,7 @@ from typing import Iterable
 
 from einops import pack, repeat
 from jaxtyping import Float
-from torch.func import functional_call, grad
+from torch.func import functional_call, grad, vmap
 
 
 Array = torch.Tensor
@@ -28,7 +28,7 @@ def make_loss_fn(model: nn.Module) -> callable:
         Assumes that the input and target tensors are not batched.
         Uses a singleton batch internally.
         """
-        inputs, targets = repeat(input, "... -> 1 ..."), repeat(target, "-> 1")
+        inputs, targets = input.unsqueeze(dim=0), target.unsqueeze(dim=0)
         outputs = functional_call(model, params, inputs, strict=True)
         loss = 0.5 * F.mse_loss(outputs, targets)
         return loss
@@ -54,7 +54,7 @@ def make_grad_fn(model: nn.Module) -> callable:
         _grad, _ = pack(list(grad_dict.values()), "*")
         return _grad
 
-    return grad_fn
+    return vmap(grad_fn, in_dims=(None, 0, 0))
 
 
 def get_influences(
