@@ -1,4 +1,3 @@
-import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,9 +9,7 @@ from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
 
-
-Array = torch.Tensor
-Params = dict[str, Array]
+from type_defs import Array, Params
 
 
 @dataclass
