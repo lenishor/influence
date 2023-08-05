@@ -9,17 +9,7 @@ from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
 
-from type_defs import Array, Params
-
-
-@dataclass
-class Samples:
-    inputs: Float[Array, "b ..."]
-    targets: Float[Array, "b ..."]
-
-    def __len__(self) -> int:
-        batch_size, *_ = self.inputs.shape
-        return batch_size
+from commons import Array, Params, Samples
 
 
 def make_loss_fn(model: nn.Module) -> callable:
