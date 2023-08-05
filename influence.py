@@ -9,7 +9,7 @@ from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
 
-from commons import Array, Params, Samples
+from commons import Array, Params, Batch
 
 
 def make_loss_fn(model: nn.Module) -> callable:
@@ -57,8 +57,8 @@ def make_grad_fn(model: nn.Module) -> callable:
 
 def get_influences(
     models: Iterable[nn.Module],
-    train_samples: Samples,
-    test_samples: Samples,
+    train_samples: Batch,
+    test_samples: Batch,
     learning_rate: float = 1.0,
 ) -> Float[Array, "n_train n_test"]:
     """

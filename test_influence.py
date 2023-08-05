@@ -5,7 +5,7 @@ import torch.nn as nn
 from einops import reduce
 from einops.layers.torch import Rearrange
 
-from influence import Array, Samples, make_loss_fn, make_grad_fn, get_influences
+from influence import Array, Batch, make_loss_fn, make_grad_fn, get_influences
 
 
 def make_linear_model_from_weights(weights: Array, batching: bool = False) -> nn.Module:
@@ -110,7 +110,7 @@ def test_get_influences(batch_size: int, in_features: int):
     similarities = torch.einsum("i d, j d -> i j", inputs, inputs)
     expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
 
-    samples = Samples(inputs, targets)
+    samples = Batch(inputs, targets)
     influences = get_influences([model], samples, samples)
     assert influences.shape == (batch_size, batch_size)
     assert torch.allclose(influences, expected_influences)
