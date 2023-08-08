@@ -1,8 +1,9 @@
 import torch
 
-from typing import Optional
+from typing import Any, Optional
 
 from jaxtyping import Float, Int
+from torch.utils.data import Dataset
 
 
 Array = torch.Tensor
@@ -34,3 +35,15 @@ class Batch:
 
     def __len__(self) -> int:
         return self.batch_size
+
+
+class IndexedDataset(Dataset):
+    def __init__(self, base_dataset: Dataset) -> None:
+        self.base_dataset = base_dataset
+
+    def __len__(self) -> int:
+        return len(self.base_dataset)
+
+    def __getitem__(self, index: int) -> Any:
+        input, target = self.base_dataset[index]
+        return index, input, target
