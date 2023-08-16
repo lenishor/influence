@@ -10,6 +10,9 @@ Array = torch.Tensor
 Params = dict[str, Array]
 
 
+DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
+
+
 class Batch:
     """
     inputs: Float[Array, "b ..."]

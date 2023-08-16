@@ -2,14 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dataclasses import dataclass
 from typing import Iterable
 
 from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
 
-from commons import Array, Params, Batch
+from commons import DEVICE, Array, Params, Batch
 
 
 def make_loss_fn(model: nn.Module) -> callable:
@@ -60,13 +59,14 @@ def get_influences(
     train_samples: Batch,
     test_samples: Batch,
     learning_rate: float = 1.0,
+    device: str = DEVICE,
 ) -> Float[Array, "n_train n_test"]:
     """
     Return the influence matrix of the given train samples on the given test samples w.r.t. the given model checkpoints using the TracInCP method.
 
     Assumes that the checkpoints are taken once every epoch.
     """
-    influences = torch.zeros(size=(len(train_samples), len(test_samples)))
+    influences = torch.zeros(size=(len(train_samples), len(test_samples)), device=device)
 
     for model in models:
         params = {name: param.detach() for name, param in model.named_parameters()}
