@@ -1,3 +1,5 @@
+import wandb
+
 import torch
 import torch.nn.functional as F
 
@@ -31,6 +33,13 @@ LEARNING_RATE: float = 1e-3
 
 
 if __name__ == "__main__":
+    # initialize wandb
+    wandb.init(
+        name=RUN_NAME,
+        project="influence",
+        entity="poggio-lab",
+    )
+
     # make run directory
     run_dir = Path(f"{MODEL_DIR}/{RUN_NAME}")
     run_dir.mkdir(exist_ok=True)
@@ -69,6 +78,8 @@ if __name__ == "__main__":
 
     # training loop
     for epoch in trange(1, NUM_EPOCHS + 1):
+        step = 1
+
         for indices, inputs, targets in train_dataloader:
             # move data to device
             indices = indices.to(device=DEVICE)
@@ -84,6 +95,21 @@ if __name__ == "__main__":
             loss = F.cross_entropy(outputs, targets)
             loss.backward()
             optimizer.step()
+
+            # calculate accuracy
+            predictions = torch.argmax(outputs, dim=-1)
+            accuracy = (predictions == targets).float().mean()
+
+            # log metrics
+            wandb.log(
+                {
+                    "loss": loss.item(),
+                    "accuracy": accuracy.item(),
+                },
+                step=step,
+            )
+
+            step += 1
 
         # save model
         state_dict = model.state_dict()
