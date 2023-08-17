@@ -12,7 +12,8 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 from tqdm import trange
 
-from commons import DEVICE, DATA_DIR, MODEL_DIR, IndexedDataset
+from commons import DEVICE, DATA_DIR, MODEL_DIR
+from data import IndexedDataset
 from models import make_mlp
 
 

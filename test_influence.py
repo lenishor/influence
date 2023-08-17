@@ -5,8 +5,9 @@ import torch.nn as nn
 from einops import reduce
 from einops.layers.torch import Rearrange
 
-from commons import DEVICE
-from influence import Array, Batch, make_loss_fn, make_grad_fn, get_influences
+from commons import DEVICE, Array
+from data import Batch
+from influence import make_loss_fn, make_grad_fn, get_influences
 
 
 def make_linear_model_from_weights(
@@ -46,7 +47,7 @@ def test_make_loss_fn(device: str = DEVICE):
     # loss = 0.5 * (output - target) ** 2 = 0.5 * (20 - 18) ** 2 = 2
     expected_loss = torch.tensor(2.0, device=device)
 
-    loss_fn = make_loss_fn(model)
+    loss_fn = make_loss_fn(model, loss_fn_name="mse")
     loss = loss_fn(params, input, target)
     assert loss.shape == ()
     assert torch.allclose(loss, expected_loss)
@@ -72,7 +73,7 @@ def test_make_grad_fn_manual(device: str = DEVICE):
     # grad = dloss/doutput * doutput/dweights = (output - target) * input = 2 * [1, 5, 3] = [2, 10, 6]
     expected_grad = torch.tensor([[2.0, 10.0, 6.0]], device=device)
 
-    grad_fn = make_grad_fn(model)
+    grad_fn = make_grad_fn(model, loss_fn_name="mse")
     grad = grad_fn(params, input, target)
     assert grad.shape == (1, 3)
     assert torch.allclose(grad, expected_grad)
@@ -99,7 +100,7 @@ def test_make_grad_fn_auto(batch_size: int, in_features: int, device: str = DEVI
     expected_grads = (outputs - targets) * inputs
 
     params = {name: param.detach() for name, param in student_model.named_parameters()}
-    grad_fn = make_grad_fn(student_model)
+    grad_fn = make_grad_fn(student_model, loss_fn_name="mse")
     grads = grad_fn(params, inputs, targets)
     assert grads.shape == (batch_size, in_features)
     assert torch.allclose(grads, expected_grads)
@@ -125,6 +126,12 @@ def test_get_influences(batch_size: int, in_features: int, device: str = DEVICE)
     expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
 
     samples = Batch(inputs, targets)
-    influences = get_influences([student_model], samples, samples)
+    influences = get_influences(
+        [student_model],
+        samples,
+        samples,
+        loss_fn_name="mse",
+        device=device,
+    )
     assert influences.shape == (batch_size, batch_size)
     assert torch.allclose(influences, expected_influences)

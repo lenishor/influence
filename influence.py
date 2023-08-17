@@ -8,7 +8,8 @@ from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
 
-from commons import DEVICE, Array, Params, Batch
+from commons import DEVICE, Array, Params
+from data import Batch
 
 
 def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> callable:
