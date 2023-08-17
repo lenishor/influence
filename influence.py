@@ -11,13 +11,21 @@ from torch.func import functional_call, grad, vmap
 from commons import DEVICE, Array, Params, Batch
 
 
-def make_loss_fn(model: nn.Module) -> callable:
+def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> callable:
     """
     Return a pure function that computes the loss of the given model on a given sample.
     """
+    if loss_fn_name == "cross-entropy":
+        _loss_fn = F.cross_entropy
+    elif loss_fn_name == "mse":
+        _loss_fn = lambda outputs, targets: 0.5 * F.mse_loss(outputs, targets)
+    else:
+        raise ValueError(f"unknown loss function name '{loss_fn_name}'")
 
     def loss_fn(
-        params: Params, input: Float[Array, "..."], target: Float[Array, "..."]
+        params: Params,
+        input: Float[Array, "..."],
+        target: Float[Array, "..."],
     ) -> Float[Array, ""]:
         """
         Return the loss of the model with the given parameters on the given sample.
@@ -27,17 +35,17 @@ def make_loss_fn(model: nn.Module) -> callable:
         """
         inputs, targets = repeat(input, "... -> 1 ..."), repeat(target, "... -> 1 ...")
         outputs = functional_call(model, params, inputs, strict=True)
-        loss = 0.5 * F.mse_loss(outputs, targets)
+        loss = _loss_fn(outputs, targets)
         return loss
 
     return loss_fn
 
 
-def make_grad_fn(model: nn.Module) -> callable:
+def make_grad_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> callable:
     """
     Return a pure function that computes the gradient of the loss w.r.t. the model parameters on a given sample.
     """
-    loss_fn = make_loss_fn(model)
+    loss_fn = make_loss_fn(model, loss_fn_name)
 
     def grad_fn(
         params: Params, input: Float[Array, "..."], target: Float[Array, ""]
@@ -59,6 +67,7 @@ def get_influences(
     train_samples: Batch,
     test_samples: Batch,
     learning_rate: float = 1.0,
+    loss_fn_name: str = "cross-entropy",
     device: str = DEVICE,
 ) -> Float[Array, "n_train n_test"]:
     """
@@ -66,11 +75,13 @@ def get_influences(
 
     Assumes that the checkpoints are taken once every epoch.
     """
-    influences = torch.zeros(size=(len(train_samples), len(test_samples)), device=device)
+    influences = torch.zeros(
+        size=(len(train_samples), len(test_samples)), device=device
+    )
 
     for model in models:
         params = {name: param.detach() for name, param in model.named_parameters()}
-        grad_fn = make_grad_fn(model)
+        grad_fn = make_grad_fn(model, loss_fn_name)
         train_grads = grad_fn(params, train_samples.inputs, train_samples.targets)
         test_grads = grad_fn(params, test_samples.inputs, test_samples.targets)
         influences += learning_rate * torch.einsum(
