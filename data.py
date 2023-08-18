@@ -1,47 +1,29 @@
-import torch
-
-from typing import Any, Optional
-
 from jaxtyping import Float, Int
 from torch.utils.data import Dataset
 
-from commons import Array
+from commons import DEVICE, Array
 
 
-class Batch:
-    """
-    inputs: Float[Array, "b ..."]
-    targets: Float[Array, "b ..."]
-    indices: Int[Array, "b"]]
-    batch_size: int
-    """
+Batch = tuple[
+    Int[Array, "b"],  # indices
+    Float[Array, "b ..."],  # inputs
+    Float[Array, "b ..."],  # targets
+]
 
-    def __init__(
-        self,
-        inputs: Float[Array, "b ..."],
-        targets: Float[Array, "b ..."],
-        indices: Optional[Int[Array, "b"]] = None,
-    ) -> None:
-        self.batch_size = len(inputs)
-        if indices is None:
-            indices = torch.arange(self.batch_size)
-        # batch size must be the same for all tensors
-        assert len(inputs) == len(targets) == len(indices)
-        self.inputs = inputs
-        self.targets = targets
-        self.indices = indices
+
+class FancyDataset(Dataset):
+    def __init__(self, plain_dataset: Dataset, device: str = DEVICE) -> None:
+        self.plain_dataset = plain_dataset
+        self.device = device
 
     def __len__(self) -> int:
-        return self.batch_size
+        return len(self.plain_dataset)
 
+    def __getitem__(self, indices: Int[Array, "b"]) -> Batch:
+        inputs, targets = self.plain_dataset[indices]
 
-class IndexedDataset(Dataset):
-    def __init__(self, base_dataset: Dataset) -> None:
-        self.base_dataset = base_dataset
+        indices = indices.to(self.device)
+        inputs = inputs.to(self.device)
+        targets = targets.to(self.device)
 
-    def __len__(self) -> int:
-        return len(self.base_dataset)
-
-    def __getitem__(self, indices: Int[Array, "b"]) -> tuple[Int[Array, "b"], Any]:
-        inputs, targets = self.base_dataset[indices]
         return indices, inputs, targets
