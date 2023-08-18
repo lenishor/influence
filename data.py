@@ -42,6 +42,6 @@ class IndexedDataset(Dataset):
     def __len__(self) -> int:
         return len(self.base_dataset)
 
-    def __getitem__(self, index: int) -> Any:
-        input, target = self.base_dataset[index]
-        return index, input, target
+    def __getitem__(self, indices: Int[Array, "b"]) -> tuple[Int[Array, "b"], Any]:
+        inputs, targets = self.base_dataset[indices]
+        return indices, inputs, targets
