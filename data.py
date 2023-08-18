@@ -33,6 +33,8 @@ class FancyDataset(Dataset):
 
 class UnionDataset(FancyDataset):
     def __init__(self, left: FancyDataset, right: FancyDataset) -> None:
+        if not left.device == right.device:
+            raise ValueError("datasets must use same device")
         self.left = left
         self.right = right
 
