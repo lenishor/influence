@@ -13,6 +13,23 @@ Batch = tuple[
 ]
 
 
+class FunctionDataset(Dataset):
+    def __init__(
+        self,
+        fn: callable[Float[Array, "b *input"], Float[Array, "b *output"]],
+        domain: Float[Array, "n *input"],
+    ) -> None:
+        super().__init__()
+        self.domain = domain
+        self.range = fn(domain)
+
+    def __len__(self) -> int:
+        return len(self.domain)
+
+    def __getitem__(self, indices: Int[Array, "b"]) -> Batch:
+        return indices, self.domain[indices], self.range[indices]
+
+
 class FancyDataset(Dataset):
     def __init__(self, plain_dataset: Dataset, device: str = DEVICE) -> None:
         self.plain_dataset = plain_dataset
