@@ -2,17 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Iterable
+from typing import Callable
 
 from einops import pack, repeat
 from jaxtyping import Float
 from torch.func import functional_call, grad, vmap
+from torch.utils.data import DataLoader
 
-from commons import DEVICE, Array, Params
-from data import Batch
+from commons import DEVICE, Array, Params, TrainingState
 
 
-def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> callable:
+def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> Callable:
     """
     Return a pure function that computes the loss of the given model on a given sample.
     """
@@ -64,29 +64,53 @@ def make_grad_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> calla
 
 
 def get_influences(
-    models: Iterable[nn.Module],
-    train_samples: Batch,
-    test_samples: Batch,
+    training_states: list[TrainingState],
+    catalyst_loader: DataLoader,
+    reactant_loader: DataLoader,
     learning_rate: float = 1.0,
     loss_fn_name: str = "cross-entropy",
     device: str = DEVICE,
 ) -> Float[Array, "n_train n_test"]:
     """
-    Return the influence matrix of the given train samples on the given test samples w.r.t. the given model checkpoints using the TracInCP method.
-
-    Assumes that the checkpoints are taken once every epoch.
+    Return the influence matrix of the given catalyst samples on the given reactant samples w.r.t. the given model checkpoints using the TracInCP method.
     """
+    catalyst_set, reactant_set = catalyst_loader.dataset, reactant_loader.dataset
+
     influences = torch.zeros(
-        size=(len(train_samples), len(test_samples)), device=device
+        size=(len(catalyst_set), len(reactant_set)),
+        device="cpu",  # too large to fit on GPU
     )
 
-    for model in models:
-        params = {name: param.detach() for name, param in model.named_parameters()}
+    for training_state in training_states:
+        model, training_batch_indices = training_state
+        model = model.to(device)
+
+        params = {n: p for n, p in model.named_parameters()}
         grad_fn = make_grad_fn(model, loss_fn_name)
-        train_grads = grad_fn(params, train_samples.inputs, train_samples.targets)
-        test_grads = grad_fn(params, test_samples.inputs, test_samples.targets)
-        influences += learning_rate * torch.einsum(
-            "i p, j p -> i j", train_grads, test_grads
+
+        # calculate the gradients of the catalyst samples
+        _, catalyst_inputs, catalyst_targets = catalyst_set[training_batch_indices]
+        catalyst_inputs = catalyst_inputs.to(device)
+        catalyst_targets = catalyst_targets.to(device)
+        catalyst_grads = grad_fn(params, catalyst_inputs, catalyst_targets)
+
+        # calculate the inner product of the catalyst gradients with the reactant gradients
+        inner_products = torch.zeros(
+            size=(len(catalyst_inputs), len(reactant_set)),
+            device="cpu",  # too large to fit on GPU
         )
+        for reactant_indices, reactant_inputs, reactant_targets in reactant_loader:
+            # calculate the gradients of a batch of reactant samples
+            reactant_inputs = reactant_inputs.to(device)
+            reactant_targets = reactant_targets.to(device)
+            reactant_grads = grad_fn(params, reactant_inputs, reactant_targets)
+
+            batch_inner_products = torch.einsum(
+                "c p, r p -> c r", catalyst_grads, reactant_grads
+            )
+            inner_products[:, reactant_indices] = batch_inner_products.to("cpu")
+
+        # update influences
+        influences[training_batch_indices] += learning_rate * inner_products
 
     return influences

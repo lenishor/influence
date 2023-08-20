@@ -4,9 +4,10 @@ import torch.nn as nn
 
 from einops import reduce
 from einops.layers.torch import Rearrange
+from torch.utils.data import DataLoader
 
 from commons import DEVICE, Array
-from data import Batch
+from data import FunctionDataset, FancyDataset
 from influence import make_loss_fn, make_grad_fn, get_influences
 
 
@@ -121,17 +122,22 @@ def test_get_influences(batch_size: int, in_features: int, device: str = DEVICE)
     inputs = torch.randn(size=(batch_size, in_features), device=device)
     outputs = student_model(inputs)
     targets = teacher_model(inputs)
+
     errors = reduce(outputs - targets, "b 1 -> b", reduction="sum")
     similarities = torch.einsum("i d, j d -> i j", inputs, inputs)
     expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
 
-    samples = Batch(inputs, targets)
+    dataset = FancyDataset(FunctionDataset(teacher_model, inputs))
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    training_batch_indices = torch.arange(start=0, end=batch_size, device="cpu")
+
     influences = get_influences(
-        [student_model],
-        samples,
-        samples,
+        [(student_model, training_batch_indices)],
+        loader,
+        loader,
         loss_fn_name="mse",
         device=device,
     )
     assert influences.shape == (batch_size, batch_size)
-    assert torch.allclose(influences, expected_influences)
+    assert torch.allclose(influences, expected_influences.cpu())
