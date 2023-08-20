@@ -42,7 +42,7 @@ def make_loss_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> Calla
     return loss_fn
 
 
-def make_grad_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> callable:
+def make_grad_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> Callable:
     """
     Return a pure function that computes the gradient of the loss w.r.t. the model parameters on a given sample.
     """
