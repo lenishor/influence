@@ -1,5 +1,7 @@
 import torch
 
+from typing import Callable
+
 from jaxtyping import Float, Int
 from torch.utils.data import Dataset
 
@@ -16,7 +18,7 @@ Batch = tuple[
 class FunctionDataset(Dataset):
     def __init__(
         self,
-        fn: callable[Float[Array, "b *input"], Float[Array, "b *output"]],
+        fn: Callable[[Float[Array, "b *input"]], Float[Array, "b *output"]],
         domain: Float[Array, "n *input"],
     ) -> None:
         super().__init__()
@@ -27,7 +29,7 @@ class FunctionDataset(Dataset):
         return len(self.domain)
 
     def __getitem__(self, indices: Int[Array, "b"]) -> Batch:
-        return indices, self.domain[indices], self.range[indices]
+        return self.domain[indices], self.range[indices]
 
 
 class FancyDataset(Dataset):
@@ -77,8 +79,16 @@ class UnionDataset(FancyDataset):
         _, *target_shape = left_targets.shape
 
         # initialize empty tensors for inputs and targets
-        inputs = torch.empty(size=(len(indices), *input_shape))
-        targets = torch.empty(size=(len(indices), *target_shape))
+        inputs = torch.empty(
+            size=(len(indices), *input_shape),
+            dtype=left_inputs.dtype,
+            device=left_inputs.device,
+        )
+        targets = torch.empty(
+            size=(len(indices), *target_shape),
+            dtype=left_targets.dtype,
+            device=left_targets.device,
+        )
 
         # fill in inputs and targets
         inputs[left_mask] = left_inputs
