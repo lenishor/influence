@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 
@@ -13,6 +13,7 @@ Batch = tuple[
     Float[Array, "b ..."],  # inputs
     Float[Array, "b ..."],  # targets
 ]
+Indices = int | Int[Array, "n"]
 
 
 class FunctionDataset(Dataset):
@@ -32,13 +33,32 @@ class FunctionDataset(Dataset):
         return self.domain[indices], self.range[indices]
 
 
-class FancyDataset(Dataset):
-    def __init__(self, plain_dataset: Dataset) -> None:
-        self.plain_dataset = plain_dataset
+class IndexedDataset(Dataset):
+    def __init__(self, base_dataset: Dataset) -> None:
+        self.base_dataset = base_dataset
 
     def __len__(self) -> int:
-        return len(self.plain_dataset)
+        return len(self.base_dataset)
 
     def __getitem__(self, indices: Int[Array, "b"]) -> Batch:
-        inputs, targets = self.plain_dataset[indices]
+        inputs, targets = self.base_dataset[indices]
+        return indices, inputs, targets
+
+
+class IndexedSubset(IndexedDataset):
+    """
+    A subset of a dataset that is indexed by a tensor of indices.
+
+    Returns the index of samples into the subset, not into the base dataset.
+    """
+
+    def __init__(self, dataset: IndexedDataset, indices: Int[Array, "n"]) -> None:
+        self.dataset = dataset
+        self.dataset_indices = indices  # indices into the base dataset
+
+    def __len__(self) -> int:
+        return len(self.dataset_indices)
+
+    def __getitem__(self, indices: Indices) -> Batch:
+        _, inputs, targets = self.dataset[self.dataset_indices[indices]]
         return indices, inputs, targets

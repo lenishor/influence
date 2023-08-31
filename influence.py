@@ -63,7 +63,7 @@ def make_grad_fn(model: nn.Module, loss_fn_name: str = "cross-entropy") -> Calla
     return vmap(grad_fn, in_dims=(None, 0, 0))
 
 
-def get_influences(
+def tracincp(
     training_states: list[TrainingState],
     catalyst_loader: DataLoader,
     reactant_loader: DataLoader,

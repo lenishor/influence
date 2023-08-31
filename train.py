@@ -11,7 +11,7 @@ from torchvision.transforms import ToTensor
 from tqdm import trange
 
 from commons import DEVICE, DATA_PATH, RUNS_PATH
-from data import FancyDataset
+from data import IndexedDataset
 from models import make_mlp
 
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     run_path.mkdir(exist_ok=True)
 
     # make datasets and dataloaders
-    train_set = FancyDataset(
+    train_set = IndexedDataset(
         MNIST(
             root=DATA_PATH,
             train=True,
@@ -52,7 +52,7 @@ if __name__ == "__main__":
             download=True,
         )
     )
-    test_set = FancyDataset(
+    test_set = IndexedDataset(
         MNIST(
             root=DATA_PATH,
             train=False,

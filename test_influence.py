@@ -7,8 +7,8 @@ from einops.layers.torch import Rearrange
 from torch.utils.data import DataLoader
 
 from commons import DEVICE, Array
-from data import FunctionDataset, FancyDataset
-from influence import make_loss_fn, make_grad_fn, get_influences
+from data import FunctionDataset, IndexedDataset
+from influence import make_loss_fn, make_grad_fn, tracincp
 
 
 def make_linear_model_from_weights(
@@ -127,12 +127,12 @@ def test_get_influences(batch_size: int, in_features: int, device: str = DEVICE)
     similarities = torch.einsum("i d, j d -> i j", inputs, inputs)
     expected_influences = torch.einsum("i, i j, j -> i j", errors, similarities, errors)
 
-    dataset = FancyDataset(FunctionDataset(teacher_model, inputs))
+    dataset = IndexedDataset(FunctionDataset(teacher_model, inputs))
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     training_batch_indices = torch.arange(start=0, end=batch_size, device="cpu")
 
-    influences = get_influences(
+    influences = tracincp(
         [(student_model, training_batch_indices)],
         loader,
         loader,
