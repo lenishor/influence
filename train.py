@@ -3,8 +3,6 @@ import wandb
 import torch
 import torch.nn.functional as F
 
-from pathlib import Path
-
 from einops import rearrange
 from torch.optim import Adam
 from torch.utils.data import DataLoader
@@ -12,7 +10,7 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 from tqdm import trange
 
-from commons import DEVICE, DATA_DIR, MODEL_DIR
+from commons import DEVICE, DATA_PATH, RUNS_PATH
 from data import FancyDataset
 from models import make_mlp
 
@@ -42,28 +40,28 @@ if __name__ == "__main__":
     )
 
     # make run directory
-    run_dir = Path(f"{MODEL_DIR}/{RUN_NAME}")
-    run_dir.mkdir(exist_ok=True)
+    run_path = RUNS_PATH / RUN_NAME
+    run_path.mkdir(exist_ok=True)
 
     # make datasets and dataloaders
-    train_dataset = FancyDataset(
+    train_set = FancyDataset(
         MNIST(
-            root=f"{DATA_DIR}",
+            root=DATA_PATH,
             train=True,
             transform=ToTensor(),
             download=True,
         )
     )
-    test_dataset = FancyDataset(
+    test_set = FancyDataset(
         MNIST(
-            root=f"{DATA_DIR}",
+            root=DATA_PATH,
             train=False,
             transform=ToTensor(),
             download=True,
         )
     )
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
 
     # make model
     model = make_mlp(
@@ -81,7 +79,7 @@ if __name__ == "__main__":
     for epoch in trange(1, NUM_EPOCHS + 1):
         step = 1
 
-        for indices, inputs, targets in train_dataloader:
+        for indices, inputs, targets in train_loader:
             # move data to device
             indices = indices.to(device=DEVICE)
             inputs = inputs.to(device=DEVICE)
@@ -112,6 +110,7 @@ if __name__ == "__main__":
 
             step += 1
 
-        # save model
+        # save model and train indices
         state_dict = model.state_dict()
-        torch.save(state_dict, f"{MODEL_DIR}/{RUN_NAME}/{epoch}.pt")
+        torch.save(indices, run_path / f"{epoch:02}_indices.pt")
+        torch.save(state_dict, run_path / f"{epoch:02}_state_dict.pt")

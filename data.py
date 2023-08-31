@@ -1,5 +1,7 @@
 from typing import Callable
 
+import torch
+
 from jaxtyping import Float, Int
 from torch.utils.data import Dataset
 

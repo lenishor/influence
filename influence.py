@@ -83,15 +83,19 @@ def get_influences(
 
     for training_state in training_states:
         model, training_batch_indices = training_state
+        # ignore training batch indices for now
+        training_batch_indices = torch.arange(len(catalyst_set))
         model = model.to(device)
 
         params = {n: p for n, p in model.named_parameters()}
         grad_fn = make_grad_fn(model, loss_fn_name)
 
         # calculate the gradients of the catalyst samples
-        _, catalyst_inputs, catalyst_targets = catalyst_set[training_batch_indices]
-        catalyst_inputs = catalyst_inputs.to(device)
-        catalyst_targets = catalyst_targets.to(device)
+        # _, catalyst_inputs, catalyst_targets = catalyst_set[training_batch_indices]
+        catalyst_data = [catalyst_set[index] for index in training_batch_indices]
+        _, catalyst_inputs, catalyst_targets = zip(*catalyst_data)
+        catalyst_inputs = torch.stack(catalyst_inputs).to(device)
+        catalyst_targets = torch.tensor(catalyst_targets).to(device)
         catalyst_grads = grad_fn(params, catalyst_inputs, catalyst_targets)
 
         # calculate the inner product of the catalyst gradients with the reactant gradients
@@ -99,6 +103,10 @@ def get_influences(
             size=(len(catalyst_inputs), len(reactant_set)),
             device="cpu",  # too large to fit on GPU
         )
+        reactant_index_normalizer = {
+            index.item(): normalized_index
+            for normalized_index, index in enumerate(reactant_set.indices)
+        }
         for reactant_indices, reactant_inputs, reactant_targets in reactant_loader:
             # calculate the gradients of a batch of reactant samples
             reactant_inputs = reactant_inputs.to(device)
@@ -108,7 +116,12 @@ def get_influences(
             batch_inner_products = torch.einsum(
                 "c p, r p -> c r", catalyst_grads, reactant_grads
             )
-            inner_products[:, reactant_indices] = batch_inner_products.to("cpu")
+            normalized_reactant_indices = torch.tensor(
+                [reactant_index_normalizer[index.item()] for index in reactant_indices]
+            )
+            inner_products[:, normalized_reactant_indices] = batch_inner_products.to(
+                "cpu"
+            )
 
         # update influences
         influences[training_batch_indices] += learning_rate * inner_products
